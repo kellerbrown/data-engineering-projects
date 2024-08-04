@@ -1,0 +1,8 @@
+# Normalize shell scripts, .env files, and Pipfiles
+*.sh text eol=lf
+.env text eol=lf
+Pipfile text eol=lf
+Pipfile.lock text eol=lf
+
+# Automatically normalize all text files
+* text=auto

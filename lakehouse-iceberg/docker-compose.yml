@@ -1,0 +1,82 @@
+version: "3"
+
+services:
+  spark-master:
+    container_name: spark-master
+    build: .
+    image: spark-iceberg
+    entrypoint: ['./entrypoint.sh', 'master']
+    volumes:
+      - ./data:/opt/spark/data
+      - ./spark-apps:/opt/spark/apps
+    env_file:
+      - .env
+    environment:
+      - SPARK_NO_DAEMONIZE=true
+    networks:
+      iceberg_net:
+    ports:
+      - 9090:8080
+      - 7077:7077
+  spark-history-server:
+    container_name: spark-history
+    image: spark-iceberg
+    entrypoint: ['./entrypoint.sh', 'history']
+    depends_on:
+      - spark-master
+    environment:
+      - SPARK_NO_DAEMONIZE=true
+    networks:
+      iceberg_net:
+    ports:
+      - 18080:18080
+  spark-worker:
+    image: spark-iceberg
+    entrypoint: ['./entrypoint.sh', 'worker']
+    depends_on:
+      - spark-master
+    env_file:
+      - .env
+    environment:
+      - SPARK_NO_DAEMONIZE=true
+    networks:
+      iceberg_net:
+  rest:
+    image: tabulario/iceberg-rest
+    container_name: iceberg-rest
+    networks:
+      iceberg_net:
+    ports:
+      - 8181:8181
+    env_file:
+      - .env
+  minio:
+    image: minio/minio
+    container_name: minio
+    env_file:
+      - .env
+    networks:
+      iceberg_net:
+        aliases:
+          - warehouse.minio
+    ports:
+      - 9001:9001
+      - 9000:9000
+    command: ["server", "/data", "--console-address", ":9001"]
+  mc:
+    image: minio/mc
+    container_name: mc
+    networks:
+      iceberg_net:
+    env_file:
+      - .env
+    entrypoint: >
+      /bin/sh -c "
+      until (/usr/bin/mc config host add minio http://minio:9000 admin password) do echo '...waiting...' && sleep 1; done;
+      /usr/bin/mc rm -r --force minio/warehouse;
+      /usr/bin/mc mb minio/warehouse;
+      /usr/bin/mc policy set public minio/warehouse;
+      tail -f /dev/null
+      "
+networks:
+  iceberg_net:
